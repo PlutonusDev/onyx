@@ -10,7 +10,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: "Onyx",
   description:
-    "A private, keyboard-driven chat client. Conversations stay on device.",
+    "Shh!",
   applicationName: "Onyx",
   appleWebApp: {
     capable: true,
@@ -37,6 +37,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
+  // The on-screen keyboard shrinks the viewport instead of overlaying the
+  // composer, so the input stays visible while typing (Android/Chromium).
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

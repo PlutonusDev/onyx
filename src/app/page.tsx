@@ -9,6 +9,7 @@ import CommandPalette from "@/components/CommandPalette";
 import Sidebar from "@/components/Sidebar";
 import SystemPromptModal from "@/components/SystemPromptModal";
 import TitleBar from "@/components/TitleBar";
+import ViewportSync from "@/components/ViewportSync";
 import { useStore } from "@/lib/store";
 
 export default function Home() {
@@ -92,7 +93,11 @@ export default function Home() {
   }
 
   return (
-    <div className="relative flex h-dvh flex-col overflow-hidden">
+    <div
+      className="relative flex flex-col overflow-hidden"
+      style={{ height: "var(--app-height, 100dvh)" }}
+    >
+      <ViewportSync />
       {/* Ambient field: a full-viewport layer that reacts to the model's phase.
           The document body is already black, so nothing opaque sits over it. */}
       <AmbientField />

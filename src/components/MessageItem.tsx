@@ -129,7 +129,7 @@ function MessageItemImpl({
             </AnimatePresence>
 
             {!streaming && message.content.length > 0 && (
-              <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover/msg:opacity-100 focus-within:opacity-100">
+              <div className="reveal-on-hover mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover/msg:opacity-100 focus-within:opacity-100">
                 <button
                   type="button"
                   onClick={copy}

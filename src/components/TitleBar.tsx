@@ -37,7 +37,7 @@ export default function TitleBar() {
           : "bg-zinc-600";
 
   return (
-    <div className="flex h-8 shrink-0 items-center justify-between border-b border-zinc-900 bg-[#09090b] px-3 select-none">
+    <div className="relative hidden h-8 shrink-0 items-center justify-between border-b border-zinc-900 bg-[#09090b] px-3 select-none lg:flex">
       {/* Traffic-light affordance — decorative; the OS draws the real controls. */}
       <div className="flex items-center gap-1.5">
         <span className="size-2.5 rounded-full bg-zinc-800" />

@@ -2,10 +2,11 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: "Onyx",
     short_name: "Onyx",
     description:
-      "A private, keyboard-driven chat client. Conversations stay on device.",
+      "Shh!",
     start_url: "/",
     scope: "/",
     display: "standalone",

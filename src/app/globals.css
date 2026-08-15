@@ -293,6 +293,31 @@
   }
 }
 
+/* Touch devices have no hover, so controls that reveal on hover must always be
+   visible or they're unreachable. */
+@media (hover: none) {
+  .reveal-on-hover {
+    opacity: 1 !important;
+  }
+}
+
+/* Lighten the ambient on phones — the large blur layers are the main GPU cost,
+   and dropping a few keeps scrolling/typing smooth. */
+@media (max-width: 640px) {
+  .ambient-blobs {
+    filter: blur(20px);
+  }
+  .ambient-aurora {
+    filter: blur(46px);
+    opacity: 0.4;
+  }
+  .ambient-blob-5,
+  .ambient-blob-6,
+  .ambient-grain {
+    display: none;
+  }
+}
+
 html,
 body {
   height: 100%;
@@ -300,6 +325,8 @@ body {
   color: #fafafa;
   /* Kills iOS rubber-band scroll and the desktop scroll-chaining flash. */
   overscroll-behavior: none;
+  /* Belt-and-braces against any child forcing a horizontal scrollbar on mobile. */
+  overflow-x: hidden;
 }
 
 body {

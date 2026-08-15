@@ -149,7 +149,7 @@ function ChatRow({
           }}
           aria-label="Chat options"
           className={cn(
-            "absolute top-1/2 right-1 -translate-y-1/2 rounded-md p-1 text-zinc-600 transition-all",
+            "reveal-on-hover absolute top-1/2 right-1 -translate-y-1/2 rounded-md p-1.5 text-zinc-600 transition-all",
             "hover:bg-zinc-700/70 hover:text-zinc-200 focus-visible:ring-1 focus-visible:ring-amber-500/60 focus-visible:outline-none",
             menu ? "opacity-100" : "opacity-0 group-hover/row:opacity-100 focus:opacity-100",
           )}
