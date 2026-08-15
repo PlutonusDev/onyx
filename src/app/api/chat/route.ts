@@ -1,4 +1,4 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { MODELS, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT } from "@/lib/models";
 
 export const runtime = "nodejs";
@@ -21,14 +21,64 @@ const TOOL = "\u0004";
 const ERROR_SENTINEL = "\u0000";
 const SESSION_SENTINEL = "\u0001";
 
+interface ReqAttachment {
+  kind: "image" | "pdf";
+  mediaType: string;
+  /** base64 data URL. */
+  dataUrl: string;
+}
+
 interface ChatRequestBody {
   /** Only the newest user turn; prior context is restored via `sessionId`. */
   prompt?: string;
   /** Full transcript, used to seed context when no session exists yet. */
   messages?: { role: "user" | "assistant"; content: string }[];
+  attachments?: ReqAttachment[];
   model?: string;
   system?: string;
   sessionId?: string;
+}
+
+/** Split a `data:<media>;base64,<payload>` URL into its parts. */
+function parseDataUrl(dataUrl: string): { mediaType: string; data: string } | null {
+  const m = /^data:([^;]+);base64,([\s\S]*)$/.exec(dataUrl);
+  if (!m) return null;
+  return { mediaType: m[1], data: m[2] };
+}
+
+/** Build a content-block user message carrying text plus images / PDFs. */
+function buildAttachmentMessage(
+  text: string,
+  attachments: ReqAttachment[],
+): SDKUserMessage {
+  const blocks: unknown[] = [];
+  if (text.trim()) blocks.push({ type: "text", text });
+
+  for (const a of attachments) {
+    const parsed = parseDataUrl(a.dataUrl);
+    if (!parsed) continue;
+    if (a.kind === "image") {
+      blocks.push({
+        type: "image",
+        source: { type: "base64", media_type: parsed.mediaType, data: parsed.data },
+      });
+    } else {
+      blocks.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: parsed.data,
+        },
+      });
+    }
+  }
+
+  return {
+    type: "user",
+    message: { role: "user", content: blocks },
+    parent_tool_use_id: null,
+  } as SDKUserMessage;
 }
 
 const ALLOWED_MODELS = new Set(MODELS.map((m) => m.id as string));
@@ -88,6 +138,7 @@ export async function POST(req: Request) {
   );
 
   const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
+  const attachments = Array.isArray(body.attachments) ? body.attachments : [];
 
   // With a live session Claude Code already holds the context, so send only the
   // new turn; otherwise replay the transcript.
@@ -95,7 +146,17 @@ export async function POST(req: Request) {
     ? (body.prompt ?? history.at(-1)?.content ?? "")
     : transcriptPrompt(history);
 
-  if (!prompt.trim()) return bad("No message to send.", 400);
+  if (!prompt.trim() && attachments.length === 0) {
+    return bad("No message to send.", 400);
+  }
+
+  // Attachments require a structured content-block message; plain turns stay a
+  // simple string so session resume works unchanged.
+  const promptInput: string | AsyncIterable<SDKUserMessage> = attachments.length
+    ? (async function* () {
+        yield buildAttachmentMessage(prompt, attachments);
+      })()
+    : prompt;
 
   const modelId =
     body.model && ALLOWED_MODELS.has(body.model) ? body.model : DEFAULT_MODEL;
@@ -135,7 +196,7 @@ export async function POST(req: Request) {
 
       try {
         const run = query({
-          prompt,
+          prompt: promptInput,
           options: {
             model: modelId,
             systemPrompt: system,

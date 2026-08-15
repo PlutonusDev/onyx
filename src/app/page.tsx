@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import AmbientField from "@/components/AmbientField";
 import AuthModal from "@/components/AuthModal";
+import Canvas from "@/components/Canvas";
 import ChatArea from "@/components/ChatArea";
 import CommandPalette from "@/components/CommandPalette";
 import Sidebar from "@/components/Sidebar";
+import SlashCommandModal from "@/components/SlashCommandModal";
 import SystemPromptModal from "@/components/SystemPromptModal";
 import TitleBar from "@/components/TitleBar";
 import ViewportSync from "@/components/ViewportSync";
@@ -23,6 +25,7 @@ export default function Home() {
   const [keyModal, setKeyModal] = useState(false);
   const [keyPromptDismissed, setKeyPromptDismissed] = useState(false);
   const [systemModal, setSystemModal] = useState(false);
+  const [commandsModal, setCommandsModal] = useState(false);
 
   // Surface the setup dialog automatically once the probe reports no usable
   // profile — derived, so no effect is needed.
@@ -166,15 +169,19 @@ export default function Home() {
         </div>
       </div>
 
+      <Canvas />
+
       <CommandPalette
         open={palette}
         onClose={() => setPalette(false)}
         onOpenKey={() => setKeyModal(true)}
         onOpenSystem={() => setSystemModal(true)}
+        onOpenCommands={() => setCommandsModal(true)}
         onToggleSidebar={toggleSidebar}
       />
       <AuthModal open={showKeyModal} onClose={closeKeyModal} />
       <SystemPromptModal open={systemModal} onClose={() => setSystemModal(false)} />
+      <SlashCommandModal open={commandsModal} onClose={() => setCommandsModal(false)} />
     </div>
   );
 }

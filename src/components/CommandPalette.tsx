@@ -12,6 +12,7 @@ import {
   PanelLeft,
   Plus,
   Search,
+  Slash,
   SlidersHorizontal,
   Trash2,
 } from "lucide-react";
@@ -62,12 +63,14 @@ export default function CommandPalette({
   onClose,
   onOpenKey,
   onOpenSystem,
+  onOpenCommands,
   onToggleSidebar,
 }: {
   open: boolean;
   onClose: () => void;
   onOpenKey: () => void;
   onOpenSystem: () => void;
+  onOpenCommands: () => void;
   onToggleSidebar: () => void;
 }) {
   const {
@@ -108,22 +111,12 @@ export default function CommandPalette({
         run: newChat,
       },
       {
-        id: "auth",
-        label: "Sign in / credentials",
-        hint: "Ctrl+Shift+K",
+        id: "commands",
+        label: "Manage slash commands",
         group: "Actions",
-        icon: <KeyRound size={14} />,
-        keywords: "auth login token key credential account profile",
-        run: onOpenKey,
-      },
-      {
-        id: "system",
-        label: "Edit system prompt",
-        hint: "Ctrl+Shift+P",
-        group: "Actions",
-        icon: <SlidersHorizontal size={14} />,
-        keywords: "instructions persona behaviour",
-        run: onOpenSystem,
+        icon: <Slash size={14} />,
+        keywords: "slash command templates prompts library",
+        run: onOpenCommands,
       },
       {
         id: "sidebar",
@@ -210,6 +203,7 @@ export default function CommandPalette({
     newChat,
     onOpenKey,
     onOpenSystem,
+    onOpenCommands,
     onToggleSidebar,
     setModel,
   ]);

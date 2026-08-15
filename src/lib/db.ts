@@ -7,11 +7,25 @@ export interface ToolEvent {
   detail?: string;
 }
 
+export type AttachmentKind = "image" | "pdf";
+
+export interface Attachment {
+  id: string;
+  kind: AttachmentKind;
+  name: string;
+  mediaType: string;
+  /** base64 data URL, so it round-trips through IndexedDB and the <img> tag. */
+  dataUrl: string;
+  size: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: number;
+  /** Images / PDFs the user sent with this turn. */
+  attachments?: Attachment[];
   /** Extended-thinking transcript that preceded the answer, when present. */
   thinking?: string;
   /** Tool activity (web search / fetch) surfaced during the turn. */

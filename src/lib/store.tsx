@@ -14,6 +14,7 @@ import {
   persistChat,
   removeChat,
   clearAllChats,
+  type Attachment,
   type Chat,
   type ChatMessage,
   type ToolEvent,
@@ -112,6 +113,13 @@ export type AuthState =
 /** What the model is doing right now, for the ambient field to react to. */
 export type Phase = "idle" | "thinking" | "answering";
 
+/** A code/document artifact opened in the Canvas side panel. */
+export interface Artifact {
+  title: string;
+  language: string;
+  code: string;
+}
+
 interface StoreValue {
   hydrated: boolean;
   chats: Chat[];
@@ -133,9 +141,15 @@ interface StoreValue {
   phase: Phase;
   /** Reported by the live message while its smoothed text is still revealing. */
   setRevealing: (v: boolean) => void;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, attachments?: Attachment[]) => Promise<void>;
+  editMessage: (messageId: string, newText: string) => Promise<void>;
   stopStreaming: () => void;
   regenerate: () => Promise<void>;
+
+  canvas: Artifact | null;
+  openCanvas: (artifact: Artifact) => void;
+  closeCanvas: () => void;
+  updateCanvasCode: (code: string) => void;
 
   newChat: () => void;
   renameChat: (id: string, title: string) => void;
@@ -411,6 +425,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({
             messages: history.map((m) => ({ role: m.role, content: m.content })),
             prompt: history.at(-1)?.content ?? "",
+            attachments: history.at(-1)?.attachments ?? [],
             sessionId,
             model: modelRef.current,
             system: systemRef.current,
@@ -491,9 +506,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, attachments?: Attachment[]) => {
       const trimmed = text.trim();
-      if (!trimmed || streaming) return;
+      if ((!trimmed && !attachments?.length) || streaming) return;
 
       const chat = chats.find((c) => c.id === activeId);
       if (!chat) return;
@@ -503,6 +518,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         role: "user",
         content: trimmed,
         createdAt: Date.now(),
+        ...(attachments?.length ? { attachments } : {}),
       };
       const history = [...chat.messages.filter((m) => !m.error), userMsg];
 
@@ -510,13 +526,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ...c,
         title:
           c.messages.length === 0 || c.title === "New Chat"
-            ? titleFromPrompt(trimmed)
+            ? titleFromPrompt(trimmed || attachments?.[0]?.name || "New Chat")
             : c.title,
         messages: history,
         updatedAt: Date.now(),
       }));
 
       await runCompletion(chat.id, history, chat.sessionId);
+    },
+    [activeId, chats, mutateChat, runCompletion, streaming],
+  );
+
+  /** Edit a user message in place and re-run the conversation from that point. */
+  const editMessage = useCallback(
+    async (messageId: string, newText: string) => {
+      if (streaming) return;
+      const trimmed = newText.trim();
+      if (!trimmed) return;
+
+      const chat = chats.find((c) => c.id === activeId);
+      if (!chat) return;
+      const idx = chat.messages.findIndex((m) => m.id === messageId);
+      if (idx === -1 || chat.messages[idx].role !== "user") return;
+
+      const edited: ChatMessage = {
+        ...chat.messages[idx],
+        content: trimmed,
+        createdAt: Date.now(),
+      };
+      // Everything after the edited turn is now stale.
+      const history = [...chat.messages.slice(0, idx), edited];
+
+      mutateChat(chat.id, (c) => ({
+        ...c,
+        messages: history,
+        sessionId: undefined,
+      }));
+
+      await runCompletion(chat.id, history);
     },
     [activeId, chats, mutateChat, runCompletion, streaming],
   );
@@ -547,6 +594,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     abortRef.current?.abort();
   }, []);
 
+  /* ---------------------------------------------------------------- canvas */
+
+  const [canvas, setCanvas] = useState<Artifact | null>(null);
+  const openCanvas = useCallback((artifact: Artifact) => setCanvas(artifact), []);
+  const closeCanvas = useCallback(() => setCanvas(null), []);
+  const updateCanvasCode = useCallback(
+    (code: string) => setCanvas((c) => (c ? { ...c, code } : c)),
+    [],
+  );
+
   const value: StoreValue = {
     hydrated,
     chats,
@@ -559,6 +616,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     refreshAuth,
     phase,
     setRevealing,
+    editMessage,
+    canvas,
+    openCanvas,
+    closeCanvas,
+    updateCanvasCode,
     model,
     setModel,
     systemPrompt,
