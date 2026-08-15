@@ -1,69 +1,175 @@
-import Image from "next/image";
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import AmbientField from "@/components/AmbientField";
+import AuthModal from "@/components/AuthModal";
+import ChatArea from "@/components/ChatArea";
+import CommandPalette from "@/components/CommandPalette";
+import Sidebar from "@/components/Sidebar";
+import SystemPromptModal from "@/components/SystemPromptModal";
+import TitleBar from "@/components/TitleBar";
+import { useStore } from "@/lib/store";
 
 export default function Home() {
+  const { hydrated, newChat, authState } = useStore();
+
+  // The sidebar stays out of the way by default; the palette (⌘K) is the
+  // primary way to move around.
+  const [sidebar, setSidebar] = useState(false);
+  const [drawer, setDrawer] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const [keyModal, setKeyModal] = useState(false);
+  const [keyPromptDismissed, setKeyPromptDismissed] = useState(false);
+  const [systemModal, setSystemModal] = useState(false);
+
+  // Surface the setup dialog automatically once the probe reports no usable
+  // profile — derived, so no effect is needed.
+  const needsSetup =
+    authState === "cli-missing" ||
+    authState === "logged-out" ||
+    authState === "error";
+  const showKeyModal = keyModal || (hydrated && needsSetup && !keyPromptDismissed);
+
+  const closeKeyModal = useCallback(() => {
+    setKeyModal(false);
+    setKeyPromptDismissed(true);
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      setSidebar((v) => !v);
+    } else {
+      setDrawer((v) => !v);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+
+      if (e.shiftKey) {
+        switch (key) {
+          case "o":
+            e.preventDefault();
+            newChat();
+            setDrawer(false);
+            return;
+          case "k":
+            e.preventDefault();
+            setKeyModal(true);
+            return;
+          case "p":
+            e.preventDefault();
+            setSystemModal(true);
+            return;
+          default:
+            return;
+        }
+      }
+
+      if (key === "k") {
+        e.preventDefault();
+        setPalette((v) => !v);
+      } else if (key === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [newChat, toggleSidebar]);
+
+  if (!hydrated) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-black">
+        <div className="size-5 animate-spin rounded-full border-2 border-zinc-800 border-t-amber-500" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="relative flex h-dvh flex-col overflow-hidden">
+      {/* Ambient field: a full-viewport layer that reacts to the model's phase.
+          The document body is already black, so nothing opaque sits over it. */}
+      <AmbientField />
+
+      <div className="relative z-10 flex h-full flex-col">
+        <TitleBar />
+
+        <div className="flex min-h-0 flex-1">
+          {/* Desktop rail */}
+          <motion.aside
+            initial={false}
+            animate={{ width: sidebar ? 288 : 0 }}
+            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+            className="hidden shrink-0 overflow-hidden lg:block"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <div className="h-full w-72">
+              <Sidebar
+                onCollapse={() => setSidebar(false)}
+                onOpenKey={() => setKeyModal(true)}
+                onOpenSystem={() => setSystemModal(true)}
+              />
+            </div>
+          </motion.aside>
+
+          {/* Mobile drawer */}
+          <AnimatePresence>
+            {drawer && (
+              <div className="fixed inset-0 z-40 lg:hidden">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  onClick={() => setDrawer(false)}
+                  className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                />
+                <motion.div
+                  initial={{ x: "-100%" }}
+                  animate={{ x: 0 }}
+                  exit={{ x: "-100%" }}
+                  transition={{ type: "spring", stiffness: 380, damping: 36 }}
+                  className="absolute inset-y-0 left-0 w-[85%] max-w-xs shadow-2xl shadow-black/80"
+                >
+                  <Sidebar
+                    onClose={() => setDrawer(false)}
+                    onOpenKey={() => {
+                      setDrawer(false);
+                      setKeyModal(true);
+                    }}
+                    onOpenSystem={() => {
+                      setDrawer(false);
+                      setSystemModal(true);
+                    }}
+                  />
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          <ChatArea
+            onToggleSidebar={toggleSidebar}
+            sidebarOpen={sidebar}
+            onOpenPalette={() => setPalette(true)}
+            onNeedKey={() => setKeyModal(true)}
+          />
         </div>
-      </main>
+      </div>
+
+      <CommandPalette
+        open={palette}
+        onClose={() => setPalette(false)}
+        onOpenKey={() => setKeyModal(true)}
+        onOpenSystem={() => setSystemModal(true)}
+        onToggleSidebar={toggleSidebar}
+      />
+      <AuthModal open={showKeyModal} onClose={closeKeyModal} />
+      <SystemPromptModal open={systemModal} onClose={() => setSystemModal(false)} />
     </div>
   );
 }

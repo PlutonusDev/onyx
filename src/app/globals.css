@@ -1,26 +1,640 @@
 @import "tailwindcss";
+@import "highlight.js/styles/github-dark.css";
+@import "katex/dist/katex.min.css";
+
+@theme {
+  --color-obsidian: #000000;
+  --color-panel: #09090b;
+  --color-surface: #18181b;
+  --color-edge: #27272a;
+  --color-muted: #a1a1aa;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ------------------------------------------------------------ ambient field */
+
+/* Registered so the colours can *transition* — plain custom properties can't.
+   This is what makes the field morph (indigo → amber) as the model shifts from
+   thinking to answering, rather than snapping. */
+@property --amb-glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(99, 102, 241, 0.05);
+}
+@property --amb-1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(79, 70, 229, 0.1);
+}
+@property --amb-2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(30, 64, 175, 0.08);
+}
+@property --amb-3 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(2, 6, 23, 0);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--amb-op, 0.5);
+  transition:
+    --amb-glow 1.3s ease,
+    --amb-1 1.4s ease,
+    --amb-2 1.5s ease,
+    --amb-3 1.4s ease,
+    opacity 0.9s ease;
+}
+
+/* Phase palettes ------------------------------------------------------------ */
+.ambient[data-phase="idle"] {
+  --amb-glow: rgba(99, 102, 241, 0.22);
+  --amb-1: rgba(79, 70, 229, 0.28);
+  --amb-2: rgba(56, 89, 190, 0.22);
+  --amb-3: rgba(37, 99, 235, 0.18);
+  --amb-op: 0.8;
+}
+.ambient[data-phase="thinking"] {
+  --amb-glow: rgba(129, 140, 248, 0.55);
+  --amb-1: rgba(99, 102, 241, 0.55);
+  --amb-2: rgba(168, 85, 247, 0.45);
+  --amb-3: rgba(34, 211, 238, 0.36);
+  --amb-op: 1;
+}
+.ambient[data-phase="answering"] {
+  --amb-glow: rgba(251, 191, 36, 0.5);
+  --amb-1: rgba(251, 146, 60, 0.5);
+  --amb-2: rgba(244, 114, 182, 0.38);
+  --amb-3: rgba(250, 204, 21, 0.4);
+  --amb-op: 1;
+}
+
+/* Swirling conic aurora behind the blobs, biased to the lower half. */
+.ambient-aurora {
+  position: absolute;
+  inset: -25% -25% -45% -25%;
+  background: conic-gradient(
+    from 0deg at 50% 88%,
+    var(--amb-1),
+    var(--amb-2),
+    var(--amb-3),
+    var(--amb-glow),
+    var(--amb-2),
+    var(--amb-1)
+  );
+  filter: blur(70px);
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  mask-image: radial-gradient(120% 95% at 50% 108%, #000 38%, transparent 76%);
+  -webkit-mask-image: radial-gradient(
+    120% 95% at 50% 108%,
+    #000 38%,
+    transparent 76%
+  );
+/*  animation: ct-aurora 44s linear infinite;*/
+  will-change: transform;
+}
+@keyframes ct-aurora {
+  to {
+    transform: rotate(360deg);
   }
 }
 
+/* Rising glow from the bottom edge — reaches well up into the viewport. */
+.ambient-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    125% 85% at 50% 106%,
+    var(--amb-glow),
+    transparent 58%
+  );
+}
+
+/* Fine film grain, animated in small steps for a living shimmer. */
+.ambient-grain {
+  position: absolute;
+  inset: -60px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  animation: ct-grain 6s steps(5) infinite;
+}
+@keyframes ct-grain {
+  0% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-24px, 12px);
+  }
+  40% {
+    transform: translate(16px, -18px);
+  }
+  60% {
+    transform: translate(-12px, -8px);
+  }
+  80% {
+    transform: translate(20px, 16px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* Lava-lamp blobs ----------------------------------------------------------- */
+.ambient-blobs {
+  position: absolute;
+  inset: 0;
+  filter: blur(28px);
+}
+.ambient-blob {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+.ambient-blob-1 {
+  left: 6%;
+  bottom: -14%;
+  width: 50vmax;
+  height: 50vmax;
+  background: radial-gradient(circle at 50% 50%, var(--amb-1), transparent 66%);
+  animation: ct-lava-1 19s ease-in-out infinite;
+}
+.ambient-blob-2 {
+  right: 2%;
+  bottom: -20%;
+  width: 56vmax;
+  height: 56vmax;
+  background: radial-gradient(circle at 50% 50%, var(--amb-2), transparent 66%);
+  animation: ct-lava-2 24s ease-in-out infinite;
+}
+.ambient-blob-3 {
+  left: 32%;
+  bottom: -26%;
+  width: 44vmax;
+  height: 44vmax;
+  background: radial-gradient(circle at 50% 50%, var(--amb-3), transparent 64%);
+  animation: ct-lava-3 21s ease-in-out infinite;
+}
+.ambient-blob-4 {
+  left: 50%;
+  bottom: -30%;
+  width: 38vmax;
+  height: 38vmax;
+  background: radial-gradient(circle at 50% 50%, var(--amb-glow), transparent 64%);
+  animation: ct-lava-4 27s ease-in-out infinite;
+}
+.ambient-blob-5 {
+  left: 18%;
+  bottom: -24%;
+  width: 32vmax;
+  height: 32vmax;
+  background: radial-gradient(circle at 50% 50%, var(--amb-3), transparent 62%);
+  animation: ct-lava-5 23s ease-in-out infinite;
+}
+.ambient-blob-6 {
+  right: 20%;
+  bottom: -18%;
+  width: 36vmax;
+  height: 36vmax;
+  background: radial-gradient(circle at 50% 50%, var(--amb-1), transparent 64%);
+  animation: ct-lava-6 30s ease-in-out infinite;
+}
+
+/* Each blob rises and sinks on its own slow cycle with a little lateral sway,
+   so the field churns like a lava lamp instead of drifting uniformly. */
+@keyframes ct-lava-1 {
+  0%,
+  100% {
+    transform: translate(0, 6%) scale(1);
+  }
+  50% {
+    transform: translate(6%, -30%) scale(1.18);
+  }
+}
+@keyframes ct-lava-2 {
+  0%,
+  100% {
+    transform: translate(0, 10%) scale(1.05);
+  }
+  50% {
+    transform: translate(-7%, -26%) scale(0.9);
+  }
+}
+@keyframes ct-lava-3 {
+  0%,
+  100% {
+    transform: translate(-4%, 12%) scale(0.95);
+  }
+  50% {
+    transform: translate(5%, -34%) scale(1.22);
+  }
+}
+@keyframes ct-lava-4 {
+  0%,
+  100% {
+    transform: translate(-50%, 8%) scale(1);
+  }
+  50% {
+    transform: translate(-46%, -40%) scale(1.3);
+  }
+}
+@keyframes ct-lava-5 {
+  0%,
+  100% {
+    transform: translate(3%, 10%) scale(1.08);
+  }
+  50% {
+    transform: translate(-6%, -32%) scale(0.86);
+  }
+}
+@keyframes ct-lava-6 {
+  0%,
+  100% {
+    transform: translate(2%, 8%) scale(0.92);
+  }
+  50% {
+    transform: translate(8%, -36%) scale(1.16);
+  }
+}
+
+/* Keeps text legible over the field: darker toward the top, open at the bottom
+   where the glow lives. */
+.ambient-vignette {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.42) 0%,
+    rgba(0, 0, 0, 0.12) 40%,
+    transparent 72%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-blob,
+  .ambient-aurora,
+  .ambient-grain {
+    animation: none !important;
+  }
+}
+
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  height: 100%;
+  background-color: #000000;
+  color: #fafafa;
+  /* Kills iOS rubber-band scroll and the desktop scroll-chaining flash. */
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Standalone (installed) mode: no browser chrome, so respect the safe areas
+   ourselves and lock the document so only the message list scrolls. */
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    overflow: hidden;
+  }
+}
+
+/* ---------------------------------------------------------------- scrollbar */
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #27272a;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #52525b;
+  background-clip: content-box;
+}
+
+/* ------------------------------------------------------------------ markdown */
+
+.prose-claude {
+  font-size: 0.9375rem;
+  line-height: 1.72;
+  color: #d4d4d8;
+  word-break: break-word;
+  /* Slightly tighter tracking reads cleaner at this size on dark ground. */
+  letter-spacing: -0.006em;
+}
+.prose-claude > * + * {
+  margin-top: 0.9rem;
+}
+.prose-claude h1,
+.prose-claude h2,
+.prose-claude h3,
+.prose-claude h4 {
+  font-weight: 600;
+  color: #fafafa;
+  line-height: 1.3;
+  letter-spacing: -0.014em;
+  margin-top: 1.6rem;
+}
+.prose-claude h1 {
+  font-size: 1.375rem;
+}
+.prose-claude h2 {
+  font-size: 1.15rem;
+}
+.prose-claude h3 {
+  font-size: 1rem;
+}
+.prose-claude h4 {
+  font-size: 0.9375rem;
+  color: #d4d4d8;
+}
+.prose-claude a {
+  color: #a5b4fc;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.prose-claude a:hover {
+  color: #c7d2fe;
+}
+.prose-claude strong {
+  color: #fafafa;
+  font-weight: 600;
+}
+.prose-claude ul,
+.prose-claude ol {
+  padding-left: 1.35rem;
+}
+.prose-claude ul {
+  list-style: disc;
+}
+.prose-claude ol {
+  list-style: decimal;
+}
+.prose-claude li::marker {
+  color: #71717a;
+}
+.prose-claude li + li {
+  margin-top: 0.35rem;
+}
+.prose-claude blockquote {
+  border-left: 2px solid #3f3f46;
+  padding-left: 1rem;
+  color: #a1a1aa;
+  font-style: italic;
+}
+.prose-claude hr {
+  border-color: #27272a;
+}
+.prose-claude :not(pre) > code {
+  background-color: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.3rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.85em;
+  font-family: var(--font-mono);
+  color: #fbbf24;
+}
+.prose-claude pre {
+  margin: 0;
+  background: transparent;
+}
+.prose-claude pre code.hljs {
+  background: transparent;
+  padding: 0;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  font-family: var(--font-mono);
+}
+
+/* Tables can exceed the bubble width — scroll them, never the page. */
+.prose-claude .table-scroll {
+  overflow-x: auto;
+  border: 1px solid #27272a;
+  border-radius: 0.5rem;
+}
+.prose-claude table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.prose-claude th,
+.prose-claude td {
+  border-bottom: 1px solid #27272a;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.prose-claude th {
+  background-color: #18181b;
+  font-weight: 600;
+  color: #fafafa;
+  white-space: nowrap;
+}
+.prose-claude tr:last-child td {
+  border-bottom: none;
+}
+.prose-claude .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}
+
+/* ------------------------------------------------------------------ effects */
+
+@keyframes ct-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fade-up {
+  animation: ct-fade-up 0.22s ease-out both;
+}
+
+/* --------------------------------------------------------- streaming text */
+
+/* Each word arrives as its own span; only newly appended ones animate, since
+   React reuses the DOM nodes of words already on screen. */
+@keyframes ct-token-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.08em);
+    filter: blur(1.5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+.live .tok {
+  display: inline-block;
+  animation: ct-token-in 0.42s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  /* `will-change` is deliberately omitted: hundreds of promoted layers costs
+     far more than the animation saves. */
+}
+
+/* Mark tracing itself while waiting for the first token. */
+.trace-path {
+  stroke-dasharray: 54;
+}
+.trace-run {
+  animation: ct-trace 1.9s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes ct-trace {
+  0% {
+    stroke-dashoffset: 54;
+  }
+  55% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -54;
+  }
+}
+
+.core-pulse {
+  transform-origin: center;
+  animation: ct-core 1.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes ct-core {
+  0%,
+  100% {
+    transform: scale(0.55);
+    opacity: 0.45;
+  }
+  55% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Label revealed by a light sweep rather than a blinking ellipsis. */
+.shimmer-text {
+  background: linear-gradient(
+    100deg,
+    #52525b 20%,
+    #e4e4e7 42%,
+    #52525b 62%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ct-shimmer 2.6s ease-in-out infinite;
+}
+@keyframes ct-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/* Indeterminate progress sweep shown while a response streams. */
+@keyframes ct-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+.animate-sweep {
+  animation: ct-sweep 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Slow parallax drift for the ambient background wash. */
+@keyframes ct-drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(3%, 2%, 0) scale(1.08);
+  }
+}
+@keyframes ct-drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(-4%, -3%, 0) scale(1);
+  }
+}
+.animate-drift-a {
+  animation: ct-drift-a 26s ease-in-out infinite;
+  will-change: transform;
+}
+.animate-drift-b {
+  animation: ct-drift-b 34s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Breathing halo behind the assistant avatar while it is generating. */
+@keyframes ct-pulse-ring {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.35);
+  }
+}
+.animate-pulse-ring {
+  animation: ct-pulse-ring 2s ease-in-out infinite;
+}
+
+textarea {
+  field-sizing: content;
+}
+
+::selection {
+  background-color: rgba(251, 191, 36, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
